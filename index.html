@@ -371,14 +371,8 @@ function buildNav() {
 }
 
 function setTab(id) {
-  const prev = currentTab;
   currentTab = id;
   buildNav();
-  // Se já está no mapa e apenas atualizou GPS, não recria
-  if (id === 'mapa' && prev === 'mapa' && leafletMap) {
-    updateLeafletMarker();
-    return;
-  }
   renderTab(id);
 }
 
@@ -387,14 +381,14 @@ function renderTab(id) {
   if (!el) return;
   if (id==='home')       el.innerHTML = renderHome();
   else if (id==='filas') el.innerHTML = renderFilas();
-  else if (id==='mapa')  { el.innerHTML = renderMapa(); setTimeout(initLeafletMap, 50); return; }
+  else if (id==='mapa')  { el.innerHTML = renderMapa(); setTimeout(initLeafletMap, 30); return; }
   else if (id==='historico') el.innerHTML = renderHistorico();
   else if (id==='perfil')    el.innerHTML = renderPerfil();
   else if (id==='painel')    el.innerHTML = renderPainel();
   else if (id==='motoristas') el.innerHTML = renderMotoristas();
   else if (id==='relatorio')  el.innerHTML = renderRelatorio();
   bindEvents(id);
-  if (id==='mapa') { setTimeout(initLeafletMap, 50); }
+  if (id==='mapa') { setTimeout(initLeafletMap, 30); }
 }
 
 // ─── RENDER LOGIN ─────────────────────────────────────────────────────────────
@@ -508,101 +502,88 @@ function renderFilas() {
 }
 
 // ─── RENDER MAPA ──────────────────────────────────────────────────────────────
-let leafletMap = null;
-let leafletMarker = null;
-let leafletFactory = null;
-let leafletAccuracy = null;
+// Mapa criado uma única vez, nunca destruído
+let _map = null;
+let _marker = null;
+let _circle = null;
+let _mapReady = false;
 
 function renderMapa() {
-  leafletMap = null; leafletMarker = null; leafletFactory = null; leafletAccuracy = null;
   const cls = geo.loading?'loading':(!geo.dist||geo.error)?'far':geo.dist<=RAIO_KM?'close':'far';
   const title = geo.loading?'Obtendo localização GPS...':geo.error?'GPS indisponível':geo.dist<=RAIO_KM?`A ${geo.dist.toFixed(2)} km — dentro da área`:`A ${geo.dist.toFixed(2)} km da fábrica`;
-
   return `<div class="section-title">📍 Minha Localização</div>
-    <div class="geo-box ${cls}"><span class="geo-icon">${geo.loading?'📡':geo.error?'⚠️':geo.dist<=RAIO_KM?'📍':'🔒'}</span>
-      <div><div class="geo-title">${title}</div><div class="geo-sub">${esc(FABRICA.label)}</div></div>
+    <div class="geo-box ${cls}" id="geo-status-box">
+      <span class="geo-icon" id="geo-icon">${geo.loading?'📡':geo.error?'⚠️':geo.dist<=RAIO_KM?'📍':'🔒'}</span>
+      <div><div class="geo-title" id="geo-title">${title}</div><div class="geo-sub">${esc(FABRICA.label)}</div></div>
     </div>
-    <div class="map-wrap">
-      <div id="leaflet-map"></div>
-      <div class="map-live-badge"><span class="dot-live"></span>AO VIVO</div>
-    </div>
+    <div class="map-wrap"><div id="leaflet-map"></div><div class="map-live-badge"><span class="dot-live"></span>AO VIVO</div></div>
     <div class="chip-grid">
-      <div class="chip"><span class="chip-label">Latitude</span><span class="chip-val" style="font-family:var(--mono);font-size:12px">${geo.lat?.toFixed(6)??'—'}</span></div>
-      <div class="chip"><span class="chip-label">Longitude</span><span class="chip-val" style="font-family:var(--mono);font-size:12px">${geo.lng?.toFixed(6)??'—'}</span></div>
-      <div class="chip"><span class="chip-label">Distância</span><span class="chip-val">${geo.dist?.toFixed(2)??'—'} km</span></div>
-      <div class="chip"><span class="chip-label">Check-in</span><span class="chip-val">${geo.dist!=null?(geo.dist<=RAIO_KM?'<span class="badge badge-green">Liberado</span>':'<span class="badge badge-red">Bloqueado</span>'):'—'}</span></div>
+      <div class="chip"><span class="chip-label">Latitude</span><span class="chip-val" id="chip-lat" style="font-family:var(--mono);font-size:12px">${geo.lat?.toFixed(6)??'—'}</span></div>
+      <div class="chip"><span class="chip-label">Longitude</span><span class="chip-val" id="chip-lng" style="font-family:var(--mono);font-size:12px">${geo.lng?.toFixed(6)??'—'}</span></div>
+      <div class="chip"><span class="chip-label">Distância</span><span class="chip-val" id="chip-dist">${geo.dist?.toFixed(2)??'—'} km</span></div>
+      <div class="chip"><span class="chip-label">Check-in</span><span class="chip-val" id="chip-checkin">${geo.dist!=null?(geo.dist<=RAIO_KM?'<span class="badge badge-green">Liberado</span>':'<span class="badge badge-red">Bloqueado</span>'):'—'}</span></div>
     </div>`;
 }
 
 function initLeafletMap() {
+  // Se mapa já existe, só reanexa ao novo container
   const mapEl = document.getElementById('leaflet-map');
-  if (!mapEl || leafletMap) return;
+  if (!mapEl) return;
 
-  const centerLat = geo.lat || FABRICA.lat;
-  const centerLng = geo.lng || FABRICA.lng;
-
-  leafletMap = L.map('leaflet-map', { zoomControl: true, attributionControl: false }).setView([centerLat, centerLng], 13);
-
-  // OpenStreetMap tiles
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-  }).addTo(leafletMap);
-
-  // Ícone da fábrica
-  const factoryIcon = L.divIcon({
-    html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🏭</div>',
-    iconSize: [32, 32], iconAnchor: [16, 16], className: ''
-  });
-  leafletFactory = L.marker([FABRICA.lat, FABRICA.lng], {icon: factoryIcon}).addTo(leafletMap)
-    .bindPopup('<strong>Brascal Calcário</strong><br>Rod. dos Minérios, km 27');
-
-  // Círculo de 3km (raio de check-in)
-  L.circle([FABRICA.lat, FABRICA.lng], {
-    radius: RAIO_KM * 1000,
-    color: '#F5A623', fillColor: '#F5A623', fillOpacity: 0.06, weight: 1.5, dashArray: '6,6'
-  }).addTo(leafletMap);
-
-  // Marcador do motorista (círculo azul)
-  if (geo.lat && geo.lng) {
-    const driverIcon = L.divIcon({
-      html: `<div style="width:18px;height:18px;border-radius:50%;background:#4A90D9;border:3px solid #fff;box-shadow:0 0 0 2px #4A90D9,0 2px 8px rgba(0,0,0,.4)"></div>`,
-      iconSize: [18, 18], iconAnchor: [9, 9], className: ''
-    });
-    leafletMarker = L.marker([geo.lat, geo.lng], {icon: driverIcon}).addTo(leafletMap)
-      .bindPopup('<strong>Você está aqui</strong>');
-
-    // Círculo de precisão
-    leafletAccuracy = L.circle([geo.lat, geo.lng], {
-      radius: 50, color: '#4A90D9', fillColor: '#4A90D9', fillOpacity: 0.1, weight: 1
-    }).addTo(leafletMap);
-
-    // Linha entre motorista e fábrica
-    L.polyline([[geo.lat, geo.lng], [FABRICA.lat, FABRICA.lng]], {
-      color: '#F5A623', weight: 1.5, dashArray: '4,8', opacity: 0.5
-    }).addTo(leafletMap);
-
-    // Ajusta zoom para mostrar os dois pontos
-    leafletMap.fitBounds([[geo.lat, geo.lng], [FABRICA.lat, FABRICA.lng]], {padding: [40, 40]});
+  if (_map) {
+    // Mapa já existe — só move o container, não recria
+    _map.getContainer().style.display = '';
+    mapEl.replaceWith(_map.getContainer());
+    setTimeout(() => _map.invalidateSize(), 50);
+    return;
   }
+
+  // Primeira vez — cria o mapa
+  _map = L.map(mapEl, { zoomControl: true, attributionControl: false });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_map);
+
+  // Marcador simples da fábrica (pin vermelho padrão)
+  const fabIcon = L.divIcon({
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:#E74C3C;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>`,
+    iconSize:[14,14], iconAnchor:[7,7], className:''
+  });
+  L.marker([FABRICA.lat, FABRICA.lng], {icon: fabIcon}).addTo(_map)
+    .bindPopup('<strong>Brascal</strong>');
+
+  // Círculo raio check-in
+  L.circle([FABRICA.lat, FABRICA.lng], {
+    radius: RAIO_KM*1000, color:'#F5A623', fillColor:'#F5A623', fillOpacity:0.05, weight:1.5, dashArray:'6,6'
+  }).addTo(_map);
+
+  // Marcador azul do motorista
+  const driverIcon = L.divIcon({
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:#4A90D9;border:3px solid #fff;box-shadow:0 0 0 2px #4A90D9,0 2px 6px rgba(0,0,0,.4)"></div>`,
+    iconSize:[16,16], iconAnchor:[8,8], className:''
+  });
+
+  const startLat = geo.lat || FABRICA.lat;
+  const startLng = geo.lng || FABRICA.lng;
+
+  _marker = L.marker([startLat, startLng], {icon: driverIcon}).addTo(_map);
+  _circle = L.circle([startLat, startLng], {
+    radius:40, color:'#4A90D9', fillColor:'#4A90D9', fillOpacity:0.15, weight:1
+  }).addTo(_map);
+
+  if (geo.lat && geo.lng) {
+    _map.fitBounds([[geo.lat, geo.lng],[FABRICA.lat, FABRICA.lng]], {padding:[50,50], maxZoom:14});
+  } else {
+    _map.setView([FABRICA.lat, FABRICA.lng], 12);
+  }
+
+  _mapReady = true;
 }
 
 function updateLeafletMarker() {
-  if (!leafletMap || !geo.lat || !geo.lng) return;
-  const latlng = [geo.lat, geo.lng];
-  if (leafletMarker) {
-    leafletMarker.setLatLng(latlng);
-  } else {
-    // Cria o marcador se não existe ainda
-    const driverIcon = L.divIcon({
-      html: `<div style="width:18px;height:18px;border-radius:50%;background:#4A90D9;border:3px solid #fff;box-shadow:0 0 0 2px #4A90D9,0 2px 8px rgba(0,0,0,.4)"></div>`,
-      iconSize: [18,18], iconAnchor: [9,9], className: ''
-    });
-    leafletMarker = L.marker(latlng, {icon: driverIcon}).addTo(leafletMap)
-      .bindPopup('<strong>Você está aqui</strong>');
-  }
-  if (leafletAccuracy) {
-    leafletAccuracy.setLatLng(latlng);
-  }
+  if (!_mapReady || !geo.lat || !geo.lng) return;
+  const ll = [geo.lat, geo.lng];
+  if (_marker) _marker.setLatLng(ll);
+  if (_circle) _circle.setLatLng(ll);
 }
 
 // ─── RENDER PAINEL GESTOR ─────────────────────────────────────────────────────
