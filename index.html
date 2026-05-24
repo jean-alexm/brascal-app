@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#07090F"/>
 <title>BRASCAL — Gestão de Frotas</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -137,6 +139,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 /* MAP */
 .map-wrap{border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:12px;position:relative;}
 .map-wrap iframe{display:block;width:100%;height:300px;border:none;}
+#leaflet-map{width:100%;height:300px;}
+.leaflet-container{background:var(--s2);}
 .map-live-badge{position:absolute;top:10px;right:10px;background:rgba(7,9,15,.85);border:1px solid var(--green);border-radius:7px;padding:5px 10px;font-size:11px;color:var(--green);display:flex;align-items:center;gap:5px;pointer-events:none;}
 
 /* TOAST */
@@ -307,7 +311,7 @@ function startGPS() {
       geo = { loading: false, lat, lng, dist };
       if (currentTab==='home'||currentTab==='mapa') renderTab(currentTab);
     },
-    err => { geo = { loading: false, lat: null, lng: null, dist: null, error: true }; if(currentTab==='home'||currentTab==='mapa') renderTab(currentTab); },
+    err => { geo = { loading: false, lat: null, lng: null, dist: null, error: true }; if(currentTab==='home') renderTab(currentTab); },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
   );
 }
@@ -367,8 +371,14 @@ function buildNav() {
 }
 
 function setTab(id) {
+  const prev = currentTab;
   currentTab = id;
   buildNav();
+  // Se já está no mapa e apenas atualizou GPS, não recria
+  if (id === 'mapa' && prev === 'mapa' && leafletMap) {
+    updateLeafletMarker();
+    return;
+  }
   renderTab(id);
 }
 
@@ -377,13 +387,14 @@ function renderTab(id) {
   if (!el) return;
   if (id==='home')       el.innerHTML = renderHome();
   else if (id==='filas') el.innerHTML = renderFilas();
-  else if (id==='mapa')  el.innerHTML = renderMapa();
+  else if (id==='mapa')  { el.innerHTML = renderMapa(); setTimeout(initLeafletMap, 50); return; }
   else if (id==='historico') el.innerHTML = renderHistorico();
   else if (id==='perfil')    el.innerHTML = renderPerfil();
   else if (id==='painel')    el.innerHTML = renderPainel();
   else if (id==='motoristas') el.innerHTML = renderMotoristas();
   else if (id==='relatorio')  el.innerHTML = renderRelatorio();
   bindEvents(id);
+  if (id==='mapa') { setTimeout(initLeafletMap, 50); }
 }
 
 // ─── RENDER LOGIN ─────────────────────────────────────────────────────────────
@@ -497,10 +508,13 @@ function renderFilas() {
 }
 
 // ─── RENDER MAPA ──────────────────────────────────────────────────────────────
+let leafletMap = null;
+let leafletMarker = null;
+let leafletFactory = null;
+let leafletAccuracy = null;
+
 function renderMapa() {
-  const src = geo.lat&&geo.lng
-    ? `https://maps.google.com/maps?q=${geo.lat},${geo.lng}&z=14&output=embed`
-    : `https://maps.google.com/maps?q=${FABRICA.lat},${FABRICA.lng}&z=14&output=embed`;
+  leafletMap = null; leafletMarker = null; leafletFactory = null; leafletAccuracy = null;
   const cls = geo.loading?'loading':(!geo.dist||geo.error)?'far':geo.dist<=RAIO_KM?'close':'far';
   const title = geo.loading?'Obtendo localização GPS...':geo.error?'GPS indisponível':geo.dist<=RAIO_KM?`A ${geo.dist.toFixed(2)} km — dentro da área`:`A ${geo.dist.toFixed(2)} km da fábrica`;
 
@@ -509,7 +523,7 @@ function renderMapa() {
       <div><div class="geo-title">${title}</div><div class="geo-sub">${esc(FABRICA.label)}</div></div>
     </div>
     <div class="map-wrap">
-      <iframe title="Mapa" src="${src}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <div id="leaflet-map"></div>
       <div class="map-live-badge"><span class="dot-live"></span>AO VIVO</div>
     </div>
     <div class="chip-grid">
@@ -518,6 +532,77 @@ function renderMapa() {
       <div class="chip"><span class="chip-label">Distância</span><span class="chip-val">${geo.dist?.toFixed(2)??'—'} km</span></div>
       <div class="chip"><span class="chip-label">Check-in</span><span class="chip-val">${geo.dist!=null?(geo.dist<=RAIO_KM?'<span class="badge badge-green">Liberado</span>':'<span class="badge badge-red">Bloqueado</span>'):'—'}</span></div>
     </div>`;
+}
+
+function initLeafletMap() {
+  const mapEl = document.getElementById('leaflet-map');
+  if (!mapEl || leafletMap) return;
+
+  const centerLat = geo.lat || FABRICA.lat;
+  const centerLng = geo.lng || FABRICA.lng;
+
+  leafletMap = L.map('leaflet-map', { zoomControl: true, attributionControl: false }).setView([centerLat, centerLng], 13);
+
+  // OpenStreetMap tiles
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+  }).addTo(leafletMap);
+
+  // Ícone da fábrica
+  const factoryIcon = L.divIcon({
+    html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">🏭</div>',
+    iconSize: [32, 32], iconAnchor: [16, 16], className: ''
+  });
+  leafletFactory = L.marker([FABRICA.lat, FABRICA.lng], {icon: factoryIcon}).addTo(leafletMap)
+    .bindPopup('<strong>Brascal Calcário</strong><br>Rod. dos Minérios, km 27');
+
+  // Círculo de 3km (raio de check-in)
+  L.circle([FABRICA.lat, FABRICA.lng], {
+    radius: RAIO_KM * 1000,
+    color: '#F5A623', fillColor: '#F5A623', fillOpacity: 0.06, weight: 1.5, dashArray: '6,6'
+  }).addTo(leafletMap);
+
+  // Marcador do motorista (círculo azul)
+  if (geo.lat && geo.lng) {
+    const driverIcon = L.divIcon({
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:#4A90D9;border:3px solid #fff;box-shadow:0 0 0 2px #4A90D9,0 2px 8px rgba(0,0,0,.4)"></div>`,
+      iconSize: [18, 18], iconAnchor: [9, 9], className: ''
+    });
+    leafletMarker = L.marker([geo.lat, geo.lng], {icon: driverIcon}).addTo(leafletMap)
+      .bindPopup('<strong>Você está aqui</strong>');
+
+    // Círculo de precisão
+    leafletAccuracy = L.circle([geo.lat, geo.lng], {
+      radius: 50, color: '#4A90D9', fillColor: '#4A90D9', fillOpacity: 0.1, weight: 1
+    }).addTo(leafletMap);
+
+    // Linha entre motorista e fábrica
+    L.polyline([[geo.lat, geo.lng], [FABRICA.lat, FABRICA.lng]], {
+      color: '#F5A623', weight: 1.5, dashArray: '4,8', opacity: 0.5
+    }).addTo(leafletMap);
+
+    // Ajusta zoom para mostrar os dois pontos
+    leafletMap.fitBounds([[geo.lat, geo.lng], [FABRICA.lat, FABRICA.lng]], {padding: [40, 40]});
+  }
+}
+
+function updateLeafletMarker() {
+  if (!leafletMap || !geo.lat || !geo.lng) return;
+  const latlng = [geo.lat, geo.lng];
+  if (leafletMarker) {
+    leafletMarker.setLatLng(latlng);
+  } else {
+    // Cria o marcador se não existe ainda
+    const driverIcon = L.divIcon({
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:#4A90D9;border:3px solid #fff;box-shadow:0 0 0 2px #4A90D9,0 2px 8px rgba(0,0,0,.4)"></div>`,
+      iconSize: [18,18], iconAnchor: [9,9], className: ''
+    });
+    leafletMarker = L.marker(latlng, {icon: driverIcon}).addTo(leafletMap)
+      .bindPopup('<strong>Você está aqui</strong>');
+  }
+  if (leafletAccuracy) {
+    leafletAccuracy.setLatLng(latlng);
+  }
 }
 
 // ─── RENDER PAINEL GESTOR ─────────────────────────────────────────────────────
