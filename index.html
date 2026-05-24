@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#07090F"/>
+<title>BRASCAL — Gestão de Frotas</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#07090F;--s1:#0D1017;--s2:#131824;--s3:#1A2133;
+  --border:#1F2A3E;--border2:#2A3650;
+  --amber:#F5A623;--amber-dim:rgba(245,166,35,.12);
+  --blue:#4A90D9;--blue-dim:rgba(74,144,217,.12);
+  --green:#27AE60;--green-dim:rgba(39,174,96,.12);
+  --red:#E74C3C;--red-dim:rgba(231,76,60,.12);
+  --cyan:#00B4D8;
+  --text:#DDE4F0;--muted:#5A6A8A;
+  --font:'Exo 2',sans-serif;--mono:'JetBrains Mono',monospace;
+  --r:12px;--r2:8px;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;}
+.hidden{display:none!important;}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999;}
+.spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--amber);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* LOGIN */
+.login-bg{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse 80% 60% at 50% 0%,#0D1A35 0%,var(--bg) 70%);}
+.login-card{background:var(--s1);border:1px solid var(--border);border-radius:20px;padding:40px 32px;width:100%;max-width:400px;box-shadow:0 40px 100px rgba(0,0,0,.7);}
+.login-brand{text-align:center;margin-bottom:32px;}
+.login-icon{width:72px;height:72px;border-radius:18px;margin:0 auto 14px;background:linear-gradient(135deg,var(--amber),#E8960A);display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 8px 32px rgba(245,166,35,.3);}
+.login-brand h1{font-size:28px;font-weight:800;letter-spacing:2px;}
+.login-brand p{color:var(--muted);font-size:13px;margin-top:6px;}
+
+/* FIELDS */
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;font-weight:600;}
+.field input,.field select{width:100%;padding:12px 14px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r2);color:var(--text);font-size:15px;font-family:var(--font);outline:none;transition:border .2s;}
+.field input:focus,.field select:focus{border-color:var(--amber);}
+.field select option{background:var(--s2);}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 18px;border:none;border-radius:var(--r2);font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:linear-gradient(135deg,var(--amber),#D4880A);color:#000;width:100%;font-size:15px;padding:14px;margin-top:8px;}
+.btn-amber{background:linear-gradient(135deg,var(--amber),#D4880A);color:#000;}
+.btn-green{background:linear-gradient(135deg,var(--green),#1E8449);color:#fff;}
+.btn-red{background:linear-gradient(135deg,var(--red),#C0392B);color:#fff;}
+.btn-blue{background:linear-gradient(135deg,var(--blue),#2471A3);color:#fff;}
+.btn-ghost{background:var(--s2);color:var(--text);border:1px solid var(--border);}
+.btn-sm{padding:8px 13px;font-size:12px;border-radius:7px;}
+.btn-xs{padding:6px 10px;font-size:11px;border-radius:6px;}
+.btn-full{width:100%;}
+.btn:disabled{opacity:.3;cursor:not-allowed;transform:none!important;}
+
+/* SHELL */
+.topbar{background:var(--s1);border-bottom:1px solid var(--border);height:58px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;}
+.topbar-brand{display:flex;align-items:center;gap:10px;}
+.topbar-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--amber),#D4880A);display:flex;align-items:center;justify-content:center;font-size:16px;}
+.topbar-name{font-size:17px;font-weight:800;letter-spacing:1.5px;color:var(--amber);}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0;}
+.topbar-plate{font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-dim);padding:3px 8px;border-radius:5px;}
+.btn-logout{background:none;border:1px solid var(--border);color:var(--muted);padding:6px 11px;border-radius:7px;cursor:pointer;font-size:11px;font-family:var(--font);}
+
+/* NAV */
+.nav{background:var(--s1);border-bottom:1px solid var(--border);display:flex;overflow-x:auto;scrollbar-width:none;padding:0 10px;}
+.nav::-webkit-scrollbar{display:none;}
+.nav-item{padding:13px 11px;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s;display:flex;align-items:center;gap:5px;-webkit-tap-highlight-color:transparent;}
+.nav-item.active{color:var(--amber);border-color:var(--amber);}
+.nav-badge{background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:800;}
+
+/* CONTENT */
+.content{padding:16px;max-width:900px;margin:0 auto;width:100%;}
+
+/* CARD */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px;}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;}
+.card-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;}
+.section-title{font-size:18px;font-weight:800;letter-spacing:.8px;margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge-amber{background:var(--amber-dim);color:var(--amber);}
+.badge-green{background:var(--green-dim);color:var(--green);}
+.badge-red{background:var(--red-dim);color:var(--red);}
+.badge-blue{background:var(--blue-dim);color:var(--blue);}
+.dot-live{width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 1.2s infinite;display:inline-block;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* FILA */
+.fila-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:16px;}
+.fila-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:16px;position:relative;overflow:hidden;}
+.fila-card .top-accent{position:absolute;top:0;left:0;right:0;height:3px;}
+.fila-card-title{font-size:16px;font-weight:800;margin-bottom:2px;}
+.fila-card-sub{color:var(--muted);font-size:12px;margin-bottom:10px;}
+.fila-count{font-size:42px;font-weight:800;font-family:var(--mono);color:var(--amber);line-height:1;}
+.fila-count-label{color:var(--muted);font-size:11px;margin-top:2px;}
+
+/* TABLE */
+.q-table{width:100%;border-collapse:collapse;}
+.q-table th{text-align:left;padding:9px 10px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);font-weight:600;}
+.q-table td{padding:10px 10px;font-size:13px;border-bottom:1px solid rgba(31,42,62,.5);vertical-align:middle;}
+.q-table tr:last-child td{border-bottom:none;}
+.pos-badge{width:24px;height:24px;border-radius:6px;background:var(--s3);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--amber);}
+.plate{font-family:var(--mono);color:var(--amber);font-size:12px;}
+.time-warn{color:var(--red);}
+.time-ok{color:var(--muted);}
+
+/* TIMELINE */
+.timeline{display:flex;align-items:flex-start;margin:14px 0;}
+.tl-step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;}
+.tl-step::after{content:'';position:absolute;top:13px;left:50%;width:100%;height:2px;background:var(--border);z-index:0;}
+.tl-step:last-child::after{display:none;}
+.tl-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:var(--s2);display:inline-flex;align-items:center;justify-content:center;font-size:11px;position:relative;z-index:1;margin-bottom:5px;}
+.tl-dot.done{background:var(--green);border-color:var(--green);}
+.tl-dot.active{background:var(--amber);border-color:var(--amber);animation:tl-pulse 2s infinite;}
+@keyframes tl-pulse{0%,100%{box-shadow:0 0 0 4px rgba(245,166,35,.15)}50%{box-shadow:0 0 0 8px rgba(245,166,35,.04)}}
+.tl-label{font-size:10px;color:var(--muted);text-align:center;line-height:1.3;}
+
+/* GEO */
+.geo-box{border-radius:var(--r);padding:13px 15px;display:flex;align-items:center;gap:12px;margin-bottom:12px;border:1px solid;}
+.geo-box.close{background:var(--green-dim);border-color:rgba(39,174,96,.3);}
+.geo-box.far{background:var(--red-dim);border-color:rgba(231,76,60,.3);}
+.geo-box.loading{background:var(--s2);border-color:var(--border);}
+.geo-icon{font-size:26px;flex-shrink:0;}
+.geo-title{font-size:14px;font-weight:700;}
+.geo-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+
+/* MAP */
+.map-wrap{border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:12px;position:relative;}
+.map-wrap iframe{display:block;width:100%;height:300px;border:none;}
+.map-live-badge{position:absolute;top:10px;right:10px;background:rgba(7,9,15,.85);border:1px solid var(--green);border-radius:7px;padding:5px 10px;font-size:11px;color:var(--green);display:flex;align-items:center;gap:5px;pointer-events:none;}
+
+/* TOAST */
+.toast{position:fixed;bottom:22px;right:16px;left:16px;z-index:999;background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;box-shadow:0 12px 40px rgba(0,0,0,.6);font-size:13px;animation:toast-in .3s ease;display:flex;align-items:flex-start;gap:9px;}
+@keyframes toast-in{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+.toast.success{border-color:rgba(39,174,96,.4);color:var(--green);}
+.toast.warning{border-color:rgba(245,166,35,.4);color:var(--amber);}
+.toast.info{border-color:rgba(74,144,217,.4);color:var(--blue);}
+.toast.error{border-color:rgba(231,76,60,.4);color:var(--red);}
+
+/* STATS */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:14px;}
+.stat-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:14px;text-align:center;}
+.stat-num{font-size:30px;font-weight:800;font-family:var(--mono);color:var(--amber);line-height:1;}
+.stat-label{color:var(--muted);font-size:11px;margin-top:4px;}
+
+/* BOXES */
+.alert-box{background:var(--red-dim);border:1px solid rgba(231,76,60,.25);border-radius:var(--r2);padding:10px 13px;margin-bottom:9px;display:flex;align-items:flex-start;gap:9px;font-size:13px;}
+.info-box{background:var(--blue-dim);border:1px solid rgba(74,144,217,.2);border-radius:var(--r2);padding:10px 13px;margin-bottom:9px;display:flex;align-items:flex-start;gap:9px;font-size:13px;}
+.success-box{background:var(--green-dim);border:1px solid rgba(39,174,96,.25);border-radius:var(--r2);padding:10px 13px;margin-bottom:9px;display:flex;align-items:flex-start;gap:9px;font-size:13px;}
+.warn-box{background:var(--amber-dim);border:1px solid rgba(245,166,35,.25);border-radius:var(--r2);padding:10px 13px;margin-bottom:9px;display:flex;align-items:flex-start;gap:9px;font-size:13px;}
+
+/* DRIVER */
+.driver-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;}
+.driver-card-head{display:flex;align-items:center;gap:12px;margin-bottom:11px;flex-wrap:wrap;}
+.driver-av{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;}
+.driver-name{font-size:15px;font-weight:700;}
+.driver-meta{font-size:12px;color:var(--muted);margin-top:2px;}
+.driver-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:7px;}
+.driver-field{background:var(--s3);border:1px solid var(--border);border-radius:7px;padding:7px 10px;}
+.driver-field-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px;}
+.driver-field-val{font-size:13px;font-weight:600;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(7,9,15,.9);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;}
+.modal{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:520px;margin:auto;}
+.modal-title{font-size:18px;font-weight:800;margin-bottom:16px;}
+.modal-footer{display:flex;gap:9px;margin-top:16px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media(max-width:420px){.grid2{grid-template-columns:1fr;}}
+
+/* MISC */
+.chip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:12px;}
+.chip{background:var(--s3);border:1px solid var(--border);border-radius:7px;padding:7px 10px;}
+.chip-label{font-size:10px;color:var(--muted);letter-spacing:.5px;display:block;margin-bottom:2px;}
+.chip-val{font-weight:700;font-size:13px;}
+.muted{color:var(--muted);font-size:13px;}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:20px 0;}
+.mt10{margin-top:10px;}.mb10{margin-bottom:10px;}
+.flex{display:flex;align-items:center;gap:8px;}
+.flex-wrap{display:flex;flex-wrap:wrap;gap:8px;}
+.cnh-warn{color:var(--red)!important;}
+.err-msg{color:var(--red);font-size:13px;text-align:center;margin-bottom:10px;}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><div style="color:var(--muted);font-size:14px">Carregando...</div></div>
+<div id="view-login" class="hidden"></div>
+<div id="view-app" class="hidden"></div>
+<div id="modal-container"></div>
+<div id="toast-container"></div>
+
+<script>
+'use strict';
+
+// ─── CONSTANTES ───────────────────────────────────────────────────────────────
+const FABRICA = { lat: -25.2125709, lng: -49.3053884, label: "Rod. dos Minérios, km 27 - Rio Branco do Sul/PR" };
+const RAIO_KM = 3;
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function timeNow() { return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function dateNow() { return new Date().toLocaleDateString('pt-BR'); }
+function distKm(lat1,lng1,lat2,lng2) {
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function elapsed(ts) {
+  if(!ts) return '—';
+  const m=Math.floor((Date.now()-ts)/60000);
+  return m<60?`${m}min`:`${Math.floor(m/60)}h${m%60>0?` ${m%60}min`:''}`;
+}
+function fmtMin(m) {
+  if(!m) return '—';
+  return m<60?`${m}min`:`${Math.floor(m/60)}h${m%60>0?`${m%60}min`:''}`;
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function initials(nome) { return (nome||'??').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+
+// ─── STORAGE (localStorage) ───────────────────────────────────────────────────
+const DB = {
+  get(k) { try { const v=localStorage.getItem(k); return v?JSON.parse(v):null; } catch{ return null; } },
+  set(k,v) { try { localStorage.setItem(k,JSON.stringify(v)); return true; } catch{ return false; } },
+  del(k) { try { localStorage.removeItem(k); return true; } catch{ return false; } },
+  keys(prefix) { try { return Object.keys(localStorage).filter(k=>k.startsWith(prefix)); } catch{ return []; } },
+  getAll(prefix) { return this.keys(prefix).map(k=>this.get(k)).filter(Boolean); }
+};
+
+// ─── DADOS INICIAIS ───────────────────────────────────────────────────────────
+const INIT_USERS = [
+  {id:'gestor-1',nome:'Gestor Brascal',role:'gestor',login:'gestor',senha:'brascal2024',foto:'GB'},
+  {id:'m-joao',  nome:'João Silva',   role:'motorista',login:'joao',   senha:'123',cpf:'012.345.678-90',cnh:'12345678901',categoriaCnh:'E',validadeCnh:'2027-05-10',cidade:'Rio Branco do Sul',estado:'PR',placa:'ABC-1234',modelo:'Volvo FH 460',      telefone:'(41) 99111-1111'},
+  {id:'m-pedro', nome:'Pedro Alves',  role:'motorista',login:'pedro',  senha:'123',cpf:'098.765.432-10',cnh:'98765432100',categoriaCnh:'E',validadeCnh:'2026-11-20',cidade:'Colombo',          estado:'PR',placa:'DEF-5678',modelo:'Scania R 450',      telefone:'(41) 99222-2222'},
+  {id:'m-carlos',nome:'Carlos Mota',  role:'motorista',login:'carlos', senha:'123',cpf:'111.222.333-44',cnh:'11122233344',categoriaCnh:'C',validadeCnh:'2025-08-15',cidade:'Almirante Tamandaré',estado:'PR',placa:'GHI-9012',modelo:'Mercedes Actros',  telefone:'(41) 99333-3333'},
+  {id:'m-ana',   nome:'Ana Lima',     role:'motorista',login:'ana',    senha:'123',cpf:'555.666.777-88',cnh:'55566677788',categoriaCnh:'E',validadeCnh:'2028-03-01',cidade:'Curitiba',          estado:'PR',placa:'JKL-3456',modelo:'Iveco S-Way',       telefone:'(41) 99444-4444'},
+  {id:'m-rob',   nome:'Roberto Cruz', role:'motorista',login:'roberto',senha:'123',cpf:'222.333.444-55',cnh:'22233344455',categoriaCnh:'E',validadeCnh:'2026-07-30',cidade:'Campo Largo',      estado:'PR',placa:'MNO-7890',modelo:'DAF XF 105',        telefone:'(41) 99555-5555'},
+];
+
+function initDB() {
+  if (DB.get('setup:done')) return;
+  INIT_USERS.forEach(u => DB.set('user:'+u.id, u));
+  DB.set('setup:done', true);
+}
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let currentUser = null;
+let currentTab  = '';
+let geoWatch    = null;
+let geo         = { loading: true, lat: null, lng: null, dist: null };
+let toastTimer  = null;
+let tickTimer   = null;
+
+function getQueue()     { return DB.getAll('queue:').sort((a,b)=>a.entradaTs-b.entradaTs); }
+function getHistorico() { return DB.getAll('hist:').sort((a,b)=>b.criadoTs-a.criadoTs); }
+function getDrivers()   { return DB.getAll('user:').filter(u=>u.role==='motorista'); }
+function getQueueState() {
+  const q = getQueue();
+  return { fila1: q.filter(x=>x.fila===1), fila2: q.filter(x=>x.fila===2), fila3: q.filter(x=>x.fila===3) };
+}
+function getMyEntry() { return getQueue().find(x=>x.driverId===currentUser?.id); }
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function showToast(msg, type='success') {
+  clearTimeout(toastTimer);
+  const icon = type==='success'?'✅':type==='warning'?'⚠️':type==='error'?'❌':'ℹ️';
+  document.getElementById('toast-container').innerHTML =
+    `<div class="toast ${type}"><span style="font-size:18px;flex-shrink:0">${icon}</span><span>${msg}</span></div>`;
+  toastTimer = setTimeout(()=>{ document.getElementById('toast-container').innerHTML=''; }, 4000);
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+function doLogin(login, senha) {
+  const users = DB.getAll('user:');
+  const found = users.find(u=>u.login===login.trim()&&u.senha===senha);
+  if (!found) throw new Error('Login ou senha incorretos.');
+  currentUser = found;
+  startApp();
+}
+
+function doLogout() {
+  currentUser = null;
+  clearInterval(tickTimer);
+  if (geoWatch) navigator.geolocation.clearWatch(geoWatch);
+  geo = { loading: true, lat: null, lng: null, dist: null };
+  showLogin();
+}
+
+// ─── GPS ──────────────────────────────────────────────────────────────────────
+function startGPS() {
+  if (!currentUser || currentUser.role !== 'motorista') return;
+  if (!navigator.geolocation) { showToast('GPS não disponível neste dispositivo.','warning'); return; }
+  geoWatch = navigator.geolocation.watchPosition(
+    pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      const dist = distKm(lat, lng, FABRICA.lat, FABRICA.lng);
+      geo = { loading: false, lat, lng, dist };
+      if (currentTab==='home'||currentTab==='mapa') renderTab(currentTab);
+    },
+    err => { geo = { loading: false, lat: null, lng: null, dist: null, error: true }; if(currentTab==='home'||currentTab==='mapa') renderTab(currentTab); },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+  );
+}
+
+// ─── VIEWS ────────────────────────────────────────────────────────────────────
+function showLoading(v) { document.getElementById('loading').style.display = v?'flex':'none'; }
+function showLogin() {
+  showLoading(false);
+  document.getElementById('view-app').classList.add('hidden');
+  document.getElementById('view-login').classList.remove('hidden');
+  document.getElementById('view-login').innerHTML = renderLogin();
+  document.getElementById('btn-login').onclick = () => {
+    const l = document.getElementById('inp-login').value;
+    const s = document.getElementById('inp-senha').value;
+    const e = document.getElementById('login-err');
+    e.style.display='none';
+    document.getElementById('btn-login').textContent='Entrando...';
+    document.getElementById('btn-login').disabled=true;
+    try { doLogin(l,s); }
+    catch(err) { e.textContent=err.message; e.style.display='block'; document.getElementById('btn-login').textContent='Entrar'; document.getElementById('btn-login').disabled=false; }
+  };
+  document.getElementById('inp-senha').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('btn-login').click(); });
+}
+
+function startApp() {
+  showLoading(false);
+  document.getElementById('view-login').classList.add('hidden');
+  document.getElementById('view-app').classList.remove('hidden');
+
+  // Topbar
+  const plate = currentUser.placa ? `<span class="topbar-plate">${esc(currentUser.placa)}</span>` : '';
+  document.getElementById('view-app').innerHTML = `
+    <div class="topbar">
+      <div class="topbar-brand"><div class="topbar-logo">⛏️</div><span class="topbar-name">BRASCAL</span></div>
+      <div class="topbar-right">${plate}<span style="font-size:13px">${esc(currentUser.nome.split(' ')[0])}</span><div class="avatar">${initials(currentUser.nome)}</div><button class="btn-logout" id="btn-logout">Sair</button></div>
+    </div>
+    <div class="nav" id="main-nav"></div>
+    <div class="content" id="main-content"></div>`;
+
+  document.getElementById('btn-logout').onclick = doLogout;
+  buildNav();
+  startGPS();
+  tickTimer = setInterval(() => { if(currentTab) renderTab(currentTab); }, 30000);
+  setTab(currentUser.role==='gestor' ? 'painel' : 'home');
+}
+
+function buildNav() {
+  const tabs = currentUser.role==='gestor'
+    ? [{id:'painel',l:'Painel',i:'📊'},{id:'filas',l:'Filas',i:'🚛'},{id:'motoristas',l:'Motoristas',i:'👥'},{id:'historico',l:'Histórico',i:'📋'},{id:'relatorio',l:'Relatório',i:'📈'}]
+    : [{id:'home',l:'Início',i:'🏠'},{id:'filas',l:'Filas',i:'🚛'},{id:'mapa',l:'Mapa',i:'📍'},{id:'historico',l:'Histórico',i:'📋'},{id:'perfil',l:'Perfil',i:'👤'}];
+  const total = getQueue().length;
+  document.getElementById('main-nav').innerHTML = tabs.map(t=>`
+    <div class="nav-item ${currentTab===t.id?'active':''}" data-tab="${t.id}">
+      ${t.i} ${t.l}${t.id==='filas'&&total>0?`<span class="nav-badge">${total}</span>`:''}
+    </div>`).join('');
+  document.querySelectorAll('.nav-item').forEach(el=>el.onclick=()=>setTab(el.dataset.tab));
+}
+
+function setTab(id) {
+  currentTab = id;
+  buildNav();
+  renderTab(id);
+}
+
+function renderTab(id) {
+  const el = document.getElementById('main-content');
+  if (!el) return;
+  if (id==='home')       el.innerHTML = renderHome();
+  else if (id==='filas') el.innerHTML = renderFilas();
+  else if (id==='mapa')  el.innerHTML = renderMapa();
+  else if (id==='historico') el.innerHTML = renderHistorico();
+  else if (id==='perfil')    el.innerHTML = renderPerfil();
+  else if (id==='painel')    el.innerHTML = renderPainel();
+  else if (id==='motoristas') el.innerHTML = renderMotoristas();
+  else if (id==='relatorio')  el.innerHTML = renderRelatorio();
+  bindEvents(id);
+}
+
+// ─── RENDER LOGIN ─────────────────────────────────────────────────────────────
+function renderLogin() {
+  return `<div class="login-bg"><div class="login-card">
+    <div class="login-brand"><div class="login-icon">⛏️</div><h1>BRASCAL</h1><p>Sistema de Gestão de Frotas</p></div>
+    <div class="field"><label>Login</label><input id="inp-login" placeholder="Seu login" autocomplete="username"/></div>
+    <div class="field"><label>Senha</label><input id="inp-senha" type="password" placeholder="Sua senha" autocomplete="current-password"/></div>
+    <div id="login-err" class="err-msg" style="display:none"></div>
+    <button class="btn btn-primary" id="btn-login">Entrar</button>
+    <div style="color:var(--muted);font-size:11px;text-align:center;margin-top:14px;line-height:1.9">
+      Gestor: gestor / brascal2024<br/>Motorista: joao / 123
+    </div>
+  </div></div>`;
+}
+
+// ─── RENDER HOME ──────────────────────────────────────────────────────────────
+function renderHome() {
+  const qs = getQueueState();
+  const me = getMyEntry();
+  const filaAtual = me?.fila;
+  const pos = filaAtual ? qs[`fila${filaAtual}`].findIndex(x=>x.driverId===currentUser.id)+1 : null;
+  const canCheckin = !me && geo.dist!==null && geo.dist<=RAIO_KM;
+  const cnhWarn = currentUser.validadeCnh && new Date(currentUser.validadeCnh)<new Date(Date.now()+30*86400000);
+  const si = !me?0:filaAtual===1?1:filaAtual===2?2:filaAtual===3?3:4;
+  const steps = [{l:'Chegada'},{l:'Fila 1',s:'Ext.'},{l:'Fila 2',s:'Dentro'},{l:'Fila 3',s:'Carga'},{l:'Saída'}];
+
+  const geoHtml = geo.loading
+    ? `<div class="geo-box loading"><span class="geo-icon">📡</span><div><div class="geo-title">Obtendo localização GPS...</div><div class="geo-sub">Aguarde</div></div></div>`
+    : geo.error || geo.dist===null
+    ? `<div class="geo-box far"><span class="geo-icon">⚠️</span><div><div class="geo-title">GPS indisponível</div><div class="geo-sub">Verifique as permissões de localização</div></div></div>`
+    : `<div class="geo-box ${geo.dist<=RAIO_KM?'close':'far'}"><span class="geo-icon">${geo.dist<=RAIO_KM?'📍':'🔒'}</span><div>
+        <div class="geo-title">${geo.dist<=RAIO_KM?`A ${geo.dist.toFixed(1)} km — Check-in liberado!`:`A ${geo.dist.toFixed(1)} km da fábrica`}</div>
+        <div class="geo-sub">${geo.dist<=RAIO_KM?'Você está próximo. Pode fazer check-in.':`Aproxime-se a menos de ${RAIO_KM}km para liberar.`}</div>
+      </div></div>`;
+
+  let acaoHtml;
+  if (!me) {
+    acaoHtml = `<div class="muted mb10">Faça check-in ao chegar perto da fábrica.</div>
+      <button class="btn btn-amber btn-full" id="btn-checkin" ${!canCheckin?'disabled':''}>
+        ${!canCheckin?(geo.dist?`🔒 Check-in bloqueado — ${geo.dist.toFixed(1)}km (mín. ${RAIO_KM}km)`:'🔒 Aguardando GPS...'):'✅ Fazer Check-in — Entrar na Fila 1'}
+      </button>`;
+  } else if (filaAtual===3) {
+    acaoHtml = `<div class="success-box"><span style="font-size:18px">🏗️</span><div><strong>Você está carregando!</strong><div class="muted">Posição #${pos} — Fila 3</div></div></div>
+      <button class="btn btn-green btn-full" id="btn-checkout-me">🏁 Checkout — Concluir e Sair</button>`;
+  } else {
+    acaoHtml = `<div class="info-box"><span style="font-size:20px">${filaAtual===1?'⏳':'🏭'}</span>
+      <div><strong>${filaAtual===1?'Fila 1 — Pátio Externo':'Fila 2 — Dentro da Fábrica'}</strong>
+      <div class="muted">Posição #${pos} · Aguarde ser chamado pelo gestor</div></div></div>`;
+  }
+
+  const tlHtml = steps.map((s,i)=>`<div class="tl-step">
+    <div class="tl-dot ${i<si?'done':i===si?'active':''}">${i<si?'✓':''}</div>
+    <div class="tl-label">${s.l}</div>${s.s?`<div class="tl-label" style="font-size:9px">${s.s}</div>`:''}
+  </div>`).join('');
+
+  return `<div class="section-title">🏠 Minha Situação</div>
+    ${cnhWarn?`<div class="warn-box"><span style="font-size:18px">⚠️</span><span>CNH vence em <strong>${new Date(currentUser.validadeCnh).toLocaleDateString('pt-BR')}</strong>. Renove com antecedência.</span></div>`:''}
+    ${geoHtml}
+    <div class="card"><div class="card-title">🔄 Progresso</div><div class="timeline">${tlHtml}</div></div>
+    <div class="card"><div class="card-title">⚡ Ação Atual</div>${acaoHtml}</div>
+    <div class="chip-grid">
+      <div class="chip"><span class="chip-label">Placa</span><span class="chip-val" style="font-family:var(--mono);color:var(--amber)">${esc(currentUser.placa||'—')}</span></div>
+      <div class="chip"><span class="chip-label">Veículo</span><span class="chip-val">${esc(currentUser.modelo||'—')}</span></div>
+      <div class="chip"><span class="chip-label">CNH</span><span class="chip-val">${esc(currentUser.cnh||'—')}</span></div>
+      <div class="chip"><span class="chip-label">Validade CNH</span><span class="chip-val ${cnhWarn?'cnh-warn':''}">${currentUser.validadeCnh?new Date(currentUser.validadeCnh).toLocaleDateString('pt-BR'):'—'}</span></div>
+    </div>`;
+}
+
+// ─── RENDER FILAS ─────────────────────────────────────────────────────────────
+function renderFilas() {
+  const qs = getQueueState();
+  const me = getMyEntry();
+  const isG = currentUser.role==='gestor';
+  const canCheckin = !me && geo.dist!==null && geo.dist<=RAIO_KM;
+  const filas = [{key:'fila1',num:1,label:'Fila 1',sub:'Pátio Externo',color:'#F5A623'},{key:'fila2',num:2,label:'Fila 2',sub:'Dentro da Fábrica',color:'#4A90D9'},{key:'fila3',num:3,label:'Fila 3',sub:'Carregamento',color:'#27AE60'}];
+
+  const cards = filas.map(f=>`<div class="fila-card">
+    <div class="top-accent" style="background:${f.color}"></div>
+    <div class="fila-card-title">${f.label}</div><div class="fila-card-sub">${f.sub}</div>
+    <div class="fila-count">${qs[f.key].length}</div>
+    <div class="fila-count-label">caminhão${qs[f.key].length!==1?'ões':''}</div>
+    ${isG&&f.num<3?`<button class="btn btn-blue btn-sm mt10 btn-full" data-chamar="${f.num}" ${qs[f.key].length===0?'disabled':''}>📣 Chamar → Fila ${f.num+1}</button>`:''}
+  </div>`).join('');
+
+  const tables = filas.map(f=>{
+    const rows = qs[f.key].map((item,i)=>{
+      const mins=Math.floor((Date.now()-item.entradaTs)/60000);
+      const isMe=item.driverId===currentUser.id;
+      return `<tr>
+        <td><span class="pos-badge">${i+1}</span></td>
+        <td style="font-weight:${isMe?700:400}">${esc(item.name)}${isMe?'<span class="badge badge-amber" style="margin-left:6px">Você</span>':''}</td>
+        <td><span class="plate">${esc(item.placa)}</span></td>
+        <td class="muted">${esc(item.entrada)}</td>
+        <td class="${mins>30?'time-warn':'time-ok'}">${elapsed(item.entradaTs)}${mins>30?' ⚠️':''}</td>
+        ${isG&&f.num===3?`<td><button class="btn btn-green btn-xs" data-checkout="${item.id}">✓ Checkout</button></td>`:''}
+      </tr>`;
+    }).join('');
+    return `<div class="card" style="border-top:3px solid ${f.color}">
+      <div class="card-head"><div class="card-title" style="color:${f.color}">${f.label} — ${f.sub}</div><span class="muted" style="font-size:12px">${qs[f.key].length} na fila</span></div>
+      ${qs[f.key].length===0?`<div class="empty">Fila vazia.</div>`:`<table class="q-table"><thead><tr><th>#</th><th>Motorista</th><th>Placa</th><th>Entrada</th><th>Espera</th>${isG&&f.num===3?'<th>Ação</th>':''}</tr></thead><tbody>${rows}</tbody></table>`}
+    </div>`;
+  }).join('');
+
+  const checkinCard = !isG&&!me?`<div class="card"><div class="card-title">Check-in</div>
+    <div class="muted mb10">Você precisa estar a menos de ${RAIO_KM}km da fábrica.</div>
+    <button class="btn btn-amber btn-full" id="btn-checkin" ${!canCheckin?'disabled':''}>${canCheckin?'✅ Fazer Check-in':`🔒 Check-in bloqueado (> ${RAIO_KM}km)`}</button>
+  </div>`:'';
+
+  return `<div class="section-title">🚛 Filas ao Vivo</div><div class="fila-grid">${cards}</div>${tables}${checkinCard}`;
+}
+
+// ─── RENDER MAPA ──────────────────────────────────────────────────────────────
+function renderMapa() {
+  const src = geo.lat&&geo.lng
+    ? `https://maps.google.com/maps?q=${geo.lat},${geo.lng}&z=14&output=embed`
+    : `https://maps.google.com/maps?q=${FABRICA.lat},${FABRICA.lng}&z=14&output=embed`;
+  const cls = geo.loading?'loading':(!geo.dist||geo.error)?'far':geo.dist<=RAIO_KM?'close':'far';
+  const title = geo.loading?'Obtendo localização GPS...':geo.error?'GPS indisponível':geo.dist<=RAIO_KM?`A ${geo.dist.toFixed(2)} km — dentro da área`:`A ${geo.dist.toFixed(2)} km da fábrica`;
+
+  return `<div class="section-title">📍 Minha Localização</div>
+    <div class="geo-box ${cls}"><span class="geo-icon">${geo.loading?'📡':geo.error?'⚠️':geo.dist<=RAIO_KM?'📍':'🔒'}</span>
+      <div><div class="geo-title">${title}</div><div class="geo-sub">${esc(FABRICA.label)}</div></div>
+    </div>
+    <div class="map-wrap">
+      <iframe title="Mapa" src="${src}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <div class="map-live-badge"><span class="dot-live"></span>AO VIVO</div>
+    </div>
+    <div class="chip-grid">
+      <div class="chip"><span class="chip-label">Latitude</span><span class="chip-val" style="font-family:var(--mono);font-size:12px">${geo.lat?.toFixed(6)??'—'}</span></div>
+      <div class="chip"><span class="chip-label">Longitude</span><span class="chip-val" style="font-family:var(--mono);font-size:12px">${geo.lng?.toFixed(6)??'—'}</span></div>
+      <div class="chip"><span class="chip-label">Distância</span><span class="chip-val">${geo.dist?.toFixed(2)??'—'} km</span></div>
+      <div class="chip"><span class="chip-label">Check-in</span><span class="chip-val">${geo.dist!=null?(geo.dist<=RAIO_KM?'<span class="badge badge-green">Liberado</span>':'<span class="badge badge-red">Bloqueado</span>'):'—'}</span></div>
+    </div>`;
+}
+
+// ─── RENDER PAINEL GESTOR ─────────────────────────────────────────────────────
+function renderPainel() {
+  const qs = getQueueState();
+  const hist = getHistorico();
+  const drivers = getDrivers();
+  const total = qs.fila1.length+qs.fila2.length+qs.fila3.length;
+  const hoje = hist.filter(h=>h.data===dateNow()).length;
+  const alertas = [...qs.fila1,...qs.fila2,...qs.fila3].map(m=>({...m,mins:Math.floor((Date.now()-m.entradaTs)/60000)})).filter(m=>m.mins>40);
+  const mapSrc = `https://maps.google.com/maps?q=${FABRICA.lat},${FABRICA.lng}&z=14&output=embed`;
+
+  const filaRow=(key,color,label)=>`<div class="card" style="border-top:3px solid ${color}">
+    <div class="card-head"><div class="card-title" style="color:${color}">${label}</div><span class="muted" style="font-size:12px">${qs[key].length} aguardando</span></div>
+    ${qs[key].length===0?'<div class="empty">Fila vazia.</div>':`<table class="q-table"><thead><tr><th>#</th><th>Motorista</th><th>Placa</th><th>Entrada</th><th>Espera</th></tr></thead><tbody>
+    ${qs[key].map((m,i)=>{const mins=Math.floor((Date.now()-m.entradaTs)/60000);return`<tr><td><span class="pos-badge">${i+1}</span></td><td>${esc(m.name)}</td><td><span class="plate">${esc(m.placa)}</span></td><td class="muted">${esc(m.entrada)}</td><td class="${mins>30?'time-warn':'time-ok'}">${elapsed(m.entradaTs)}${mins>30?' ⚠️':''}</td></tr>`;}).join('')}
+    </tbody></table>`}
+  </div>`;
+
+  return `<div class="section-title">📊 Painel — Portaria Brascal</div>
+    <div class="stat-grid">
+      ${[{n:total,l:'No pátio'},{n:qs.fila1.length,l:'Fila 1'},{n:qs.fila2.length,l:'Fila 2'},{n:qs.fila3.length,l:'Carregando'},{n:hoje,l:'Hoje'}].map(s=>`<div class="stat-card"><div class="stat-num">${s.n}</div><div class="stat-label">${s.l}</div></div>`).join('')}
+    </div>
+    ${alertas.length?`<div class="card" style="border-color:rgba(231,76,60,.35)"><div class="card-title" style="color:var(--red)">⚠️ Espera Longa (+40min)</div>${alertas.map(a=>`<div class="alert-box"><span style="font-size:18px">⚠️</span><span><strong>${esc(a.name)}</strong> (${esc(a.placa)}) — <strong>${a.mins}min</strong> aguardando</span></div>`).join('')}</div>`:''}
+    <div class="card"><div class="card-title">📍 Fábrica Brascal</div>
+      <div class="map-wrap" style="margin-bottom:0"><iframe title="Mapa" src="${mapSrc}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe><div class="map-live-badge"><span class="dot-live"></span>AO VIVO</div></div>
+    </div>
+    <div class="card"><div class="card-title">⚡ Ações do Gestor</div>
+      <div class="muted mb10" style="font-size:12px">Chame manualmente se abrir vaga extra.</div>
+      <div class="flex-wrap">
+        <button class="btn btn-amber btn-sm" data-chamar="1" ${qs.fila1.length===0?'disabled':''}>📣 Chamar Fila 1 → Fila 2 (${qs.fila1.length})</button>
+        <button class="btn btn-blue btn-sm" data-chamar="2" ${qs.fila2.length===0?'disabled':''}>📣 Chamar Fila 2 → Carregar (${qs.fila2.length})</button>
+      </div>
+    </div>
+    ${filaRow('fila1','#F5A623','Fila 1 — Pátio Externo')}
+    ${filaRow('fila2','#4A90D9','Fila 2 — Dentro')}
+    ${qs.fila3.length?`<div class="card" style="border-top:3px solid var(--green)">
+      <div class="card-head"><div class="card-title" style="color:var(--green)">Fila 3 — Carregando</div></div>
+      <table class="q-table"><thead><tr><th>#</th><th>Motorista</th><th>Placa</th><th>Entrada</th><th>Espera</th><th>Ação</th></tr></thead><tbody>
+      ${qs.fila3.map((m,i)=>`<tr><td><span class="pos-badge">${i+1}</span></td><td>${esc(m.name)}</td><td><span class="plate">${esc(m.placa)}</span></td><td class="muted">${esc(m.entrada)}</td><td>${elapsed(m.entradaTs)}</td><td><button class="btn btn-green btn-xs" data-checkout="${m.id}">✓ Checkout</button></td></tr>`).join('')}
+      </tbody></table></div>`:''}`;
+}
+
+// ─── RENDER MOTORISTAS ────────────────────────────────────────────────────────
+let motoristasSearch = '';
+function renderMotoristas(search) {
+  if (search!==undefined) motoristasSearch=search;
+  const s = motoristasSearch.toLowerCase();
+  const qs = getQueueState();
+  const drivers = getDrivers().filter(d=>!s||(d.nome||'').toLowerCase().includes(s)||(d.placa||'').toLowerCase().includes(s)||(d.cpf||'').includes(s));
+  const inQ = id=>[...qs.fila1,...qs.fila2,...qs.fila3].find(x=>x.driverId===id);
+
+  const cards = drivers.map(d=>{
+    const active=inQ(d.id);
+    const cnhWarn=d.validadeCnh&&new Date(d.validadeCnh)<new Date(Date.now()+30*86400000);
+    return `<div class="driver-card">
+      <div class="driver-card-head">
+        <div class="driver-av">${initials(d.nome)}</div>
+        <div style="flex:1"><div class="driver-name">${esc(d.nome)}</div><div class="driver-meta">${esc(d.cidade||'')}/${esc(d.estado||'')} · ${esc(d.telefone||'')}</div></div>
+        <div class="flex" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          ${active?'<span class="badge badge-green"><span class="dot-live"></span>No pátio</span>':''}
+          ${cnhWarn?'<span class="badge badge-red">CNH vencendo</span>':''}
+          <button class="btn btn-ghost btn-xs" data-edit="${esc(d.id)}">✏️ Editar</button>
+        </div>
+      </div>
+      <div class="driver-fields">
+        <div class="driver-field"><div class="driver-field-label">CPF</div><div class="driver-field-val" style="font-family:var(--mono);font-size:12px">${esc(d.cpf||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Telefone</div><div class="driver-field-val">${esc(d.telefone||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">CNH</div><div class="driver-field-val" style="font-family:var(--mono);font-size:12px">${esc(d.cnh||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Categoria</div><div class="driver-field-val">${esc(d.categoriaCnh||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Validade CNH</div><div class="driver-field-val ${cnhWarn?'cnh-warn':''}">${d.validadeCnh?new Date(d.validadeCnh).toLocaleDateString('pt-BR'):'—'}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Placa</div><div class="driver-field-val" style="font-family:var(--mono);color:var(--amber)">${esc(d.placa||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Veículo</div><div class="driver-field-val">${esc(d.modelo||'—')}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="section-title">👥 Motoristas Cadastrados</div>
+    <div class="card"><div style="display:flex;gap:10px;align-items:center">
+      <div class="field" style="margin:0;flex:1"><input id="search-drivers" placeholder="🔍  Buscar nome, placa ou CPF..." value="${esc(motoristasSearch)}"/></div>
+      <button class="btn btn-amber btn-sm" id="btn-new-driver" style="flex-shrink:0">+ Novo</button>
+    </div></div>
+    ${drivers.length===0?'<div class="empty">Nenhum motorista encontrado.</div>':cards}`;
+}
+
+// ─── RENDER HISTÓRICO ─────────────────────────────────────────────────────────
+function renderHistorico() {
+  const hist = currentUser.role==='gestor' ? getHistorico() : getHistorico().filter(h=>h.driverId===currentUser.id);
+  return `<div class="section-title">📋 Histórico de Viagens</div>
+    <div class="card">${hist.length===0?'<div class="empty">Nenhuma viagem registrada ainda.</div>':hist.map(h=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(31,42,62,.5)">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-dim);padding:3px 7px;border-radius:5px;white-space:nowrap">${esc(h.id?.slice(0,8))}</span>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600">${esc(h.name)}</div><div class="muted" style="font-size:11px;margin-top:2px"><span class="plate">${esc(h.placa)}</span> · ${esc(h.data)} · ${esc(h.inicio)} → ${esc(h.fim)}</div></div>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--cyan);flex-shrink:0">${fmtMin(h.duracaoMin)}</div>
+        <span class="badge badge-green">✓</span>
+      </div>`).join('')}</div>`;
+}
+
+// ─── RENDER PERFIL ────────────────────────────────────────────────────────────
+function renderPerfil() {
+  const d = currentUser;
+  const cnhWarn = d.validadeCnh&&new Date(d.validadeCnh)<new Date(Date.now()+30*86400000);
+  return `<div class="section-title">👤 Meu Perfil</div>
+    ${cnhWarn?`<div class="warn-box"><span style="font-size:18px">⚠️</span><span>CNH vence em <strong>${new Date(d.validadeCnh).toLocaleDateString('pt-BR')}</strong>. Renove com antecedência.</span></div>`:''}
+    <div class="card">
+      <div class="card-head">
+        <div class="flex"><div class="driver-av" style="width:50px;height:50px;font-size:17px">${initials(d.nome)}</div>
+          <div><div style="font-size:17px;font-weight:800">${esc(d.nome)}</div><div class="muted">${esc(d.cidade||'')}/${esc(d.estado||'')}</div></div>
+        </div>
+        <button class="btn btn-amber btn-sm" id="btn-edit-perfil">✏️ Editar</button>
+      </div>
+      <div class="driver-fields">
+        <div class="driver-field"><div class="driver-field-label">CPF</div><div class="driver-field-val" style="font-family:var(--mono);font-size:12px">${esc(d.cpf||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Telefone</div><div class="driver-field-val">${esc(d.telefone||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">CNH</div><div class="driver-field-val" style="font-family:var(--mono);font-size:12px">${esc(d.cnh||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Categoria</div><div class="driver-field-val">${esc(d.categoriaCnh||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Validade CNH</div><div class="driver-field-val ${cnhWarn?'cnh-warn':''}">${d.validadeCnh?new Date(d.validadeCnh).toLocaleDateString('pt-BR'):'—'}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Placa</div><div class="driver-field-val" style="font-family:var(--mono);color:var(--amber)">${esc(d.placa||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Veículo</div><div class="driver-field-val">${esc(d.modelo||'—')}</div></div>
+        <div class="driver-field"><div class="driver-field-label">Login</div><div class="driver-field-val">${esc(d.login||'—')}</div></div>
+      </div>
+    </div>`;
+}
+
+// ─── RENDER RELATÓRIO ─────────────────────────────────────────────────────────
+function renderRelatorio() {
+  const hist = getHistorico();
+  const drivers = getDrivers();
+  const qs = getQueueState();
+  const hoje = hist.filter(h=>h.data===dateNow());
+  const total = hist.length;
+  const media = total>0?Math.round(hist.reduce((a,h)=>a+h.duracaoMin,0)/total):0;
+  const ativos = qs.fila1.length+qs.fila2.length+qs.fila3.length;
+  const porM = drivers.map(d=>{const v=hist.filter(h=>h.driverId===d.id);const m=v.length>0?Math.round(v.reduce((a,h)=>a+h.duracaoMin,0)/v.length):0;return{...d,viagens:v.length,media:m};}).filter(d=>d.viagens>0).sort((a,b)=>b.viagens-a.viagens);
+
+  return `<div class="section-title">📈 Relatório Operacional</div>
+    <div class="stat-grid">${[{n:total,l:'Total viagens'},{n:hoje.length,l:'Hoje'},{n:fmtMin(media),l:'Tempo médio'},{n:ativos,l:'No pátio agora'},{n:drivers.length,l:'Motoristas'}].map(s=>`<div class="stat-card"><div class="stat-num">${s.n}</div><div class="stat-label">${s.l}</div></div>`).join('')}</div>
+    ${porM.length?`<div class="card"><div class="card-title">👤 Por Motorista</div><table class="q-table"><thead><tr><th>Motorista</th><th>Placa</th><th>Viagens</th><th>Tempo médio</th></tr></thead><tbody>${porM.map(m=>`<tr><td>${esc(m.nome)}</td><td><span class="plate">${esc(m.placa)}</span></td><td><span class="badge badge-amber">${m.viagens}</span></td><td class="muted">${fmtMin(m.media)}</td></tr>`).join('')}</tbody></table></div>`:''}
+    <div class="card"><div class="card-title">📅 Hoje — ${dateNow()}</div>${hoje.length===0?'<div class="empty">Nenhuma viagem concluída hoje.</div>':`<table class="q-table"><thead><tr><th>Motorista</th><th>Placa</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead><tbody>${hoje.map(h=>`<tr><td>${esc(h.name)}</td><td><span class="plate">${esc(h.placa)}</span></td><td class="muted">${esc(h.inicio)}</td><td class="muted">${esc(h.fim)}</td><td style="font-family:var(--mono);font-size:12px;color:var(--cyan)">${fmtMin(h.duracaoMin)}</td></tr>`).join('')}</tbody></table>`}</div>`;
+}
+
+// ─── ACTIONS ──────────────────────────────────────────────────────────────────
+function doCheckin() {
+  const id = uid();
+  const qs = getQueueState();
+  DB.set('queue:'+id, {id, driverId:currentUser.id, name:currentUser.nome, placa:currentUser.placa||'—', fila:1, entradaTs:Date.now(), entrada:timeNow()});
+  showToast(`✅ Check-in! Você é o ${qs.fila1.length+1}º na Fila 1.`);
+  renderTab(currentTab);
+  buildNav();
+}
+
+function doChamar(deFila) {
+  const qs = getQueueState();
+  const src = qs[`fila${deFila}`];
+  if (!src.length) return;
+  const first = src[0];
+  DB.set('queue:'+first.id, {...first, fila:deFila+1, entradaTs:Date.now(), entrada:timeNow()});
+  showToast(`📣 ${first.name} chamado para Fila ${deFila+1}!`,'info');
+  renderTab(currentTab); buildNav();
+}
+
+function doCheckout(entryId, fromGestor=false) {
+  const entry = DB.get('queue:'+entryId);
+  if (!entry) return;
+  const duracaoMin = Math.max(1, Math.floor((Date.now()-entry.entradaTs)/60000));
+  const hid = uid();
+  DB.set('hist:'+hid, {id:hid, driverId:entry.driverId, name:entry.name, placa:entry.placa, data:dateNow(), inicio:entry.entrada, fim:timeNow(), duracaoMin, criadoTs:Date.now()});
+  DB.del('queue:'+entryId);
+  // auto: puxa próximo fila1 → fila2
+  const qs = getQueueState();
+  if (qs.fila1.length>0) {
+    const prox = qs.fila1[0];
+    DB.set('queue:'+prox.id, {...prox, fila:2, entradaTs:Date.now(), entrada:timeNow()});
+    showToast(`📣 ${prox.name} chamado automaticamente para Fila 2!`,'info');
+  }
+  showToast(fromGestor?'🏁 Checkout feito. Próximo chamado!':'🏁 Checkout! Boa viagem!','success');
+  renderTab(currentTab); buildNav();
+}
+
+function saveDriver(data) {
+  DB.set('user:'+data.id, data);
+  if (currentUser.id===data.id) { currentUser={...currentUser,...data}; }
+  showToast('✅ Cadastro salvo!');
+  renderTab(currentTab);
+}
+
+// ─── BIND EVENTS ──────────────────────────────────────────────────────────────
+function bindEvents(id) {
+  document.getElementById('btn-checkin')?.addEventListener('click', doCheckin);
+  document.getElementById('btn-checkout-me')?.addEventListener('click', ()=>{ const me=getMyEntry(); if(me) doCheckout(me.id); });
+  document.getElementById('btn-edit-perfil')?.addEventListener('click', ()=>openDriverModal(currentUser));
+  document.getElementById('btn-new-driver')?.addEventListener('click', ()=>openDriverModal(null));
+  document.getElementById('search-drivers')?.addEventListener('input', e=>{ renderTab('motoristas'); document.getElementById('search-drivers').value=e.target.value; motoristasSearch=e.target.value; renderTab('motoristas'); });
+  document.querySelectorAll('[data-chamar]').forEach(btn=>btn.addEventListener('click',()=>doChamar(parseInt(btn.dataset.chamar))));
+  document.querySelectorAll('[data-checkout]').forEach(btn=>btn.addEventListener('click',()=>doCheckout(btn.dataset.checkout,true)));
+  document.querySelectorAll('[data-edit]').forEach(btn=>btn.addEventListener('click',()=>{ const d=DB.get('user:'+btn.dataset.edit); if(d) openDriverModal(d); }));
+}
+
+// ─── DRIVER MODAL ─────────────────────────────────────────────────────────────
+function openDriverModal(driver) {
+  const isEdit=!!driver; const d=driver||{};
+  const estados=['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+  const cnhCats=['A','B','C','D','E','AB','AC','AD','AE'];
+
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" id="modal-bg">
+    <div class="modal">
+      <div class="modal-title">${isEdit?'✏️ Editar Motorista':'➕ Novo Motorista'}</div>
+      <div class="grid2">
+        <div class="field"><label>Nome completo *</label><input id="m-nome" value="${esc(d.nome||'')}"/></div>
+        <div class="field"><label>Telefone</label><input id="m-tel" value="${esc(d.telefone||'')}" placeholder="(41) 99999-9999"/></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>CPF *</label><input id="m-cpf" value="${esc(d.cpf||'')}" placeholder="000.000.000-00"/></div>
+        <div class="field"><label>Login</label><input id="m-login" value="${esc(d.login||'')}"/></div>
+      </div>
+      <div class="field"><label>Senha</label><input id="m-senha" value="${esc(d.senha||'')}"/></div>
+      <div class="grid2">
+        <div class="field"><label>CNH</label><input id="m-cnh" value="${esc(d.cnh||'')}"/></div>
+        <div class="field"><label>Categoria CNH</label><select id="m-cat">${cnhCats.map(c=>`<option ${d.categoriaCnh===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>Validade da CNH</label><input type="date" id="m-validade" value="${esc(d.validadeCnh||'')}"/></div>
+      <div class="grid2">
+        <div class="field"><label>Cidade</label><input id="m-cidade" value="${esc(d.cidade||'')}"/></div>
+        <div class="field"><label>Estado</label><select id="m-estado">${estados.map(s=>`<option ${d.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Placa *</label><input id="m-placa" value="${esc(d.placa||'')}" placeholder="ABC-1234"/></div>
+        <div class="field"><label>Modelo do Caminhão</label><input id="m-modelo" value="${esc(d.modelo||'')}"/></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-full" id="modal-cancel">Cancelar</button>
+        <button class="btn btn-green btn-full" id="modal-save">✅ Salvar</button>
+      </div>
+    </div>
+  </div>`;
+
+  document.getElementById('modal-cancel').onclick=()=>{ document.getElementById('modal-container').innerHTML=''; };
+  document.getElementById('modal-bg').onclick=(e)=>{ if(e.target.id==='modal-bg') document.getElementById('modal-container').innerHTML=''; };
+  document.getElementById('m-placa').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase());
+
+  document.getElementById('modal-save').onclick=()=>{
+    const nome=document.getElementById('m-nome').value.trim();
+    const cpf=document.getElementById('m-cpf').value.trim();
+    const placa=document.getElementById('m-placa').value.trim();
+    if (!nome||!cpf||!placa){ showToast('Preencha nome, CPF e placa.','error'); return; }
+    const data={
+      id: d.id||uid(), role:'motorista',
+      nome, cpf, placa,
+      telefone: document.getElementById('m-tel').value.trim(),
+      login: document.getElementById('m-login').value.trim(),
+      senha: document.getElementById('m-senha').value.trim(),
+      cnh: document.getElementById('m-cnh').value.trim(),
+      categoriaCnh: document.getElementById('m-cat').value,
+      validadeCnh: document.getElementById('m-validade').value,
+      cidade: document.getElementById('m-cidade').value.trim(),
+      estado: document.getElementById('m-estado').value,
+      modelo: document.getElementById('m-modelo').value.trim(),
+    };
+    saveDriver(data);
+    document.getElementById('modal-container').innerHTML='';
+  };
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', ()=>{
+  initDB();
+  showLogin();
+});
+</script>
+</body>
+</html>
