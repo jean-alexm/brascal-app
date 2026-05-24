@@ -598,8 +598,6 @@ function renderPainel() {
   const total = qs.fila1.length+qs.fila2.length+qs.fila3.length;
   const hoje = hist.filter(h=>h.data===dateNow()).length;
   const alertas = [...qs.fila1,...qs.fila2,...qs.fila3].map(m=>({...m,mins:Math.floor((Date.now()-m.entradaTs)/60000)})).filter(m=>m.mins>40);
-  const mapSrc = `https://maps.google.com/maps?q=${FABRICA.lat},${FABRICA.lng}&z=14&output=embed`;
-
   const filaRow=(key,color,label)=>`<div class="card" style="border-top:3px solid ${color}">
     <div class="card-head"><div class="card-title" style="color:${color}">${label}</div><span class="muted" style="font-size:12px">${qs[key].length} aguardando</span></div>
     ${qs[key].length===0?'<div class="empty">Fila vazia.</div>':`<table class="q-table"><thead><tr><th>#</th><th>Motorista</th><th>Placa</th><th>Entrada</th><th>Espera</th></tr></thead><tbody>
@@ -612,9 +610,7 @@ function renderPainel() {
       ${[{n:total,l:'No pátio'},{n:qs.fila1.length,l:'Fila 1'},{n:qs.fila2.length,l:'Fila 2'},{n:qs.fila3.length,l:'Carregando'},{n:hoje,l:'Hoje'}].map(s=>`<div class="stat-card"><div class="stat-num">${s.n}</div><div class="stat-label">${s.l}</div></div>`).join('')}
     </div>
     ${alertas.length?`<div class="card" style="border-color:rgba(231,76,60,.35)"><div class="card-title" style="color:var(--red)">⚠️ Espera Longa (+40min)</div>${alertas.map(a=>`<div class="alert-box"><span style="font-size:18px">⚠️</span><span><strong>${esc(a.name)}</strong> (${esc(a.placa)}) — <strong>${a.mins}min</strong> aguardando</span></div>`).join('')}</div>`:''}
-    <div class="card"><div class="card-title">📍 Fábrica Brascal</div>
-      <div class="map-wrap" style="margin-bottom:0"><iframe title="Mapa" src="${mapSrc}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe><div class="map-live-badge"><span class="dot-live"></span>AO VIVO</div></div>
-    </div>
+
     <div class="card"><div class="card-title">⚡ Ações do Gestor</div>
       <div class="muted mb10" style="font-size:12px">Chame manualmente se abrir vaga extra.</div>
       <div class="flex-wrap">
