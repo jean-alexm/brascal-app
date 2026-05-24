@@ -9,6 +9,14 @@
 <meta name="theme-color" content="#07090F"/>
 <title>BRASCAL — Gestão de Frotas</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script>
+// Registra service worker para notificações push
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  });
+}
+</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -241,11 +249,49 @@ const DB = {
   getAll(prefix) { return this.keys(prefix).map(k=>this.get(k)).filter(Boolean); }
 };
 
+// ─── NOTIFICAÇÕES ────────────────────────────────────────────────────────────
+async function requestNotifPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  const result = await Notification.requestPermission();
+  return result === 'granted';
+}
+
+function sendNotif(title, body, tag) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  // Tenta via Service Worker (mostra mesmo com app em segundo plano)
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'NOTIFY', title, body, tag });
+  } else {
+    // Fallback direto
+    new Notification(title, { body, icon: '/icon.png', tag, renotify: true, vibrate: [200, 100, 200] });
+  }
+}
+
+function checkPendingNotifs() {
+  if (!currentUser || currentUser.role !== 'motorista') return;
+  const key = 'notif:last:' + currentUser.id;
+  const last = DB.get(key) || 0;
+  const notifs = DB.getAll('notif:' + currentUser.id + ':').filter(n => n.ts > last);
+  if (notifs.length > 0) {
+    notifs.forEach(n => {
+      sendNotif('📣 BRASCAL', n.msg, 'brascal-' + n.ts);
+    });
+    DB.set(key, Date.now());
+  }
+}
+
+function storeNotifForDriver(driverId, msg) {
+  const id = uid();
+  DB.set('notif:' + driverId + ':' + id, { id, msg, ts: Date.now() });
+}
+
 // ─── DADOS INICIAIS ───────────────────────────────────────────────────────────
 const INIT_USERS = [
   {id:'gestor-1',nome:'Gestor Brascal',role:'gestor',login:'gestor',senha:'brascal2024',foto:'GB'},
-  {id:'m-joao',  nome:'João Silva',   role:'motorista',login:'joao',   senha:'123',cpf:'012.345.678-90',cnh:'12345678901',categoriaCnh:'E',validadeCnh:'2027-05-10',cidade:'Rio Branco do Sul',estado:'PR',placa:'ABC-1234',modelo:'Volvo FH 460',      telefone:'(41) 99111-1111'},
-  {id:'m-pedro', nome:'Pedro Alves',  role:'motorista',login:'pedro',  senha:'123',cpf:'098.765.432-10',cnh:'98765432100',categoriaCnh:'E',validadeCnh:'2026-11-20',cidade:'Colombo',          estado:'PR',placa:'DEF-5678',modelo:'Scania R 450',      telefone:'(41) 99222-2222'},
+  {id:'m-joao',  nome:'João Silva',   role:'motorista',login:'joao',   senha:'123',cpf:'012.345.678-90',cnh:'12345678901',categoriaCnh:'E',validadeCnh:'2027-05-10',cidade:'Rio Branco do Sul',estado:'PR',placa:'ABC-1234',modelo:'Volvo FH 460',      telefone:'(41) 99111-1111',empresa:'Transportes Silva'},
+  {id:'m-pedro', nome:'Pedro Alves',  role:'motorista',login:'pedro',  senha:'123',cpf:'098.765.432-10',cnh:'98765432100',categoriaCnh:'E',validadeCnh:'2026-11-20',cidade:'Colombo',          estado:'PR',placa:'DEF-5678',modelo:'Scania R 450',      telefone:'(41) 99222-2222',empresa:'Transportes Alves'},
   {id:'m-carlos',nome:'Carlos Mota',  role:'motorista',login:'carlos', senha:'123',cpf:'111.222.333-44',cnh:'11122233344',categoriaCnh:'C',validadeCnh:'2025-08-15',cidade:'Almirante Tamandaré',estado:'PR',placa:'GHI-9012',modelo:'Mercedes Actros',  telefone:'(41) 99333-3333'},
   {id:'m-ana',   nome:'Ana Lima',     role:'motorista',login:'ana',    senha:'123',cpf:'555.666.777-88',cnh:'55566677788',categoriaCnh:'E',validadeCnh:'2028-03-01',cidade:'Curitiba',          estado:'PR',placa:'JKL-3456',modelo:'Iveco S-Way',       telefone:'(41) 99444-4444'},
   {id:'m-rob',   nome:'Roberto Cruz', role:'motorista',login:'roberto',senha:'123',cpf:'222.333.444-55',cnh:'22233344455',categoriaCnh:'E',validadeCnh:'2026-07-30',cidade:'Campo Largo',      estado:'PR',placa:'MNO-7890',modelo:'DAF XF 105',        telefone:'(41) 99555-5555'},
@@ -301,6 +347,17 @@ function doLogout() {
 }
 
 // ─── GPS ──────────────────────────────────────────────────────────────────────
+function startNotifications() {
+  if (!currentUser || currentUser.role !== 'motorista') return;
+  requestNotifPermission().then(granted => {
+    if (granted) {
+      // Verifica notificações pendentes a cada 5 segundos
+      setInterval(checkPendingNotifs, 5000);
+      checkPendingNotifs();
+    }
+  });
+}
+
 function startGPS() {
   if (!currentUser || currentUser.role !== 'motorista') return;
   if (!navigator.geolocation) { showToast('GPS não disponível neste dispositivo.','warning'); return; }
@@ -357,6 +414,7 @@ function startApp() {
   document.getElementById('btn-logout').onclick = doLogout;
   buildNav();
   startGPS();
+  startNotifications();
   tickTimer = setInterval(() => { if(currentTab && currentTab !== 'mapa') renderTab(currentTab); }, 15000);
   setTab(currentUser.role==='gestor' ? 'painel' : 'home');
 }
@@ -454,6 +512,15 @@ function renderHome() {
     ${geoHtml}
     <div class="card"><div class="card-title">🔄 Progresso</div><div class="timeline">${tlHtml}</div></div>
     <div class="card"><div class="card-title">⚡ Ação Atual</div>${acaoHtml}</div>
+    ${('Notification' in window) && Notification.permission === 'default' ? `
+    <div class="warn-box mb10" id="notif-banner">
+      <span style="font-size:18px">🔔</span>
+      <div style="flex:1">
+        <strong>Ative as notificações</strong>
+        <div class="muted">Receba alertas quando for chamado para a próxima fila.</div>
+      </div>
+      <button class="btn btn-amber btn-sm" id="btn-enable-notif">Ativar</button>
+    </div>` : ''}
     <div class="chip-grid">
       <div class="chip"><span class="chip-label">Placa</span><span class="chip-val" style="font-family:var(--mono);color:var(--amber)">${esc(currentUser.placa||'—')}</span></div>
       <div class="chip"><span class="chip-label">Veículo</span><span class="chip-val">${esc(currentUser.modelo||'—')}</span></div>
@@ -657,6 +724,7 @@ function renderMotoristas(search) {
         <div class="driver-field"><div class="driver-field-label">Validade CNH</div><div class="driver-field-val ${cnhWarn?'cnh-warn':''}">${d.validadeCnh?new Date(d.validadeCnh).toLocaleDateString('pt-BR'):'—'}</div></div>
         <div class="driver-field"><div class="driver-field-label">Placa</div><div class="driver-field-val" style="font-family:var(--mono);color:var(--amber)">${esc(d.placa||'—')}</div></div>
         <div class="driver-field"><div class="driver-field-label">Veículo</div><div class="driver-field-val">${esc(d.modelo||'—')}</div></div>
+        <div class="driver-field" style="grid-column:1/-1"><div class="driver-field-label">Empresa / Transportadora</div><div class="driver-field-val">${esc(d.empresa||'Autônomo')}</div></div>
       </div>
     </div>`;
   }).join('');
@@ -703,6 +771,7 @@ function renderPerfil() {
         <div class="driver-field"><div class="driver-field-label">Validade CNH</div><div class="driver-field-val ${cnhWarn?'cnh-warn':''}">${d.validadeCnh?new Date(d.validadeCnh).toLocaleDateString('pt-BR'):'—'}</div></div>
         <div class="driver-field"><div class="driver-field-label">Placa</div><div class="driver-field-val" style="font-family:var(--mono);color:var(--amber)">${esc(d.placa||'—')}</div></div>
         <div class="driver-field"><div class="driver-field-label">Veículo</div><div class="driver-field-val">${esc(d.modelo||'—')}</div></div>
+        <div class="driver-field" style="grid-column:1/-1"><div class="driver-field-label">Empresa / Transportadora</div><div class="driver-field-val">${esc(d.empresa||'Autônomo')}</div></div>
         <div class="driver-field"><div class="driver-field-label">Login</div><div class="driver-field-val">${esc(d.login||'—')}</div></div>
       </div>
     </div>`;
@@ -738,7 +807,7 @@ function renderRastreio() {
           <div class="driver-av" style="background:linear-gradient(135deg,${fi.color},${fi.color}99)">${initials(entry.name)}</div>
           <div style="flex:1">
             <div class="driver-name">${esc(entry.name)}</div>
-            <div class="driver-meta"><span class="plate">${esc(entry.placa)}</span></div>
+            <div class="driver-meta"><span class="plate">${esc(entry.placa)}</span>${driver?.empresa ? ` · ${esc(driver.empresa)}` : ''}</div>
           </div>
           <span class="badge ${fi.badge}"><span class="dot-live" style="background:${fi.color}"></span>Fila ${entry.fila} · #${pos}</span>
         </div>
@@ -806,6 +875,8 @@ function doChamar(deFila) {
   if (!src.length) return;
   const first = src[0];
   DB.set('queue:'+first.id, {...first, fila:deFila+1, entradaTs:Date.now(), entrada:timeNow()});
+  const msg = deFila===1 ? 'Você foi chamado! Dirija-se para dentro da fábrica (Fila 2).' : 'Você foi chamado para carregar! Vá para a Fila 3.';
+  storeNotifForDriver(first.driverId, msg);
   showToast(`📣 ${first.name} chamado para Fila ${deFila+1}!`,'info');
   renderTab(currentTab); buildNav();
 }
@@ -845,6 +916,11 @@ function bindEvents(id) {
   document.querySelectorAll('[data-chamar]').forEach(btn=>btn.addEventListener('click',()=>doChamar(parseInt(btn.dataset.chamar))));
   document.querySelectorAll('[data-checkout]').forEach(btn=>btn.addEventListener('click',()=>doCheckout(btn.dataset.checkout,true)));
   document.querySelectorAll('[data-edit]').forEach(btn=>btn.addEventListener('click',()=>{ const d=DB.get('user:'+btn.dataset.edit); if(d) openDriverModal(d); }));
+  document.getElementById('btn-enable-notif')?.addEventListener('click', async () => {
+    const ok = await requestNotifPermission();
+    if (ok) { showToast('🔔 Notificações ativadas!'); renderTab(currentTab); }
+    else showToast('Permissão negada. Ative nas configurações do celular.','error');
+  });
 }
 
 // ─── DRIVER MODAL ─────────────────────────────────────────────────────────────
@@ -879,6 +955,7 @@ function openDriverModal(driver) {
         <div class="field"><label>Placa *</label><input id="m-placa" value="${esc(d.placa||'')}" placeholder="ABC-1234"/></div>
         <div class="field"><label>Modelo do Caminhão</label><input id="m-modelo" value="${esc(d.modelo||'')}"/></div>
       </div>
+      <div class="field"><label>Empresa / Transportadora</label><input id="m-empresa" value="${esc(d.empresa||'')}" placeholder="Nome da empresa ou transportadora"/></div>
       <div class="modal-footer">
         <button class="btn btn-ghost btn-full" id="modal-cancel">Cancelar</button>
         <button class="btn btn-green btn-full" id="modal-save">✅ Salvar</button>
