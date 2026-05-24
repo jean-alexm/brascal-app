@@ -309,6 +309,9 @@ function startGPS() {
       const { latitude: lat, longitude: lng } = pos.coords;
       const dist = distKm(lat, lng, FABRICA.lat, FABRICA.lng);
       geo = { loading: false, lat, lng, dist };
+      // Salva GPS no perfil para o gestor ver
+      const u = DB.get('user:'+currentUser.id);
+      if (u) DB.set('user:'+currentUser.id, {...u, geoLat:lat, geoLng:lng, geoDist:dist, geoTs:Date.now()});
       if (currentTab==='home'||currentTab==='mapa') renderTab(currentTab);
     },
     err => { geo = { loading: false, lat: null, lng: null, dist: null, error: true }; if(currentTab==='home') renderTab(currentTab); },
@@ -354,13 +357,13 @@ function startApp() {
   document.getElementById('btn-logout').onclick = doLogout;
   buildNav();
   startGPS();
-  tickTimer = setInterval(() => { if(currentTab) renderTab(currentTab); }, 30000);
+  tickTimer = setInterval(() => { if(currentTab && currentTab !== 'mapa') renderTab(currentTab); }, 15000);
   setTab(currentUser.role==='gestor' ? 'painel' : 'home');
 }
 
 function buildNav() {
   const tabs = currentUser.role==='gestor'
-    ? [{id:'painel',l:'Painel',i:'📊'},{id:'filas',l:'Filas',i:'🚛'},{id:'motoristas',l:'Motoristas',i:'👥'},{id:'historico',l:'Histórico',i:'📋'},{id:'relatorio',l:'Relatório',i:'📈'}]
+    ? [{id:'painel',l:'Painel',i:'📊'},{id:'filas',l:'Filas',i:'🚛'},{id:'rastreio',l:'Rastreio',i:'📡'},{id:'motoristas',l:'Motoristas',i:'👥'},{id:'historico',l:'Histórico',i:'📋'},{id:'relatorio',l:'Relatório',i:'📈'}]
     : [{id:'home',l:'Início',i:'🏠'},{id:'filas',l:'Filas',i:'🚛'},{id:'mapa',l:'Mapa',i:'📍'},{id:'historico',l:'Histórico',i:'📋'},{id:'perfil',l:'Perfil',i:'👤'}];
   const total = getQueue().length;
   document.getElementById('main-nav').innerHTML = tabs.map(t=>`
@@ -386,6 +389,7 @@ function renderTab(id) {
   else if (id==='perfil')    el.innerHTML = renderPerfil();
   else if (id==='painel')    el.innerHTML = renderPainel();
   else if (id==='motoristas') el.innerHTML = renderMotoristas();
+  else if (id==='rastreio')   el.innerHTML = renderRastreio();
   else if (id==='relatorio')  el.innerHTML = renderRelatorio();
   bindEvents(id);
   if (id==='mapa') { setTimeout(initLeafletMap, 30); }
@@ -706,6 +710,71 @@ function renderPerfil() {
         <div class="driver-field"><div class="driver-field-label">Login</div><div class="driver-field-val">${esc(d.login||'—')}</div></div>
       </div>
     </div>`;
+}
+
+// ─── RENDER RASTREIO ──────────────────────────────────────────────────────────
+function renderRastreio() {
+  const queue = getQueue();
+  const drivers = getDrivers();
+
+  if (queue.length === 0) {
+    return `<div class="section-title">📡 Rastreio em Tempo Real</div>
+      <div class="card"><div class="empty">Nenhum motorista no pátio agora.</div></div>`;
+  }
+
+  const filaInfo = {
+    1: { label: 'Fila 1 — Pátio Externo',  color: '#F5A623', badge: 'badge-amber' },
+    2: { label: 'Fila 2 — Dentro',          color: '#4A90D9', badge: 'badge-blue'  },
+    3: { label: 'Fila 3 — Carregando',      color: '#27AE60', badge: 'badge-green' },
+  };
+
+  const rows = queue.map((entry, i) => {
+    const driver = drivers.find(d => d.id === entry.driverId);
+    const dist = driver?.geoDist;
+    const fi = filaInfo[entry.fila] || filaInfo[1];
+    const mins = Math.floor((Date.now() - entry.entradaTs) / 60000);
+    const warnTime = mins > 40;
+    const pos = queue.filter(x => x.fila === entry.fila).findIndex(x => x.id === entry.id) + 1;
+
+    return `
+      <div class="driver-card" style="border-left:3px solid ${fi.color}">
+        <div class="driver-card-head">
+          <div class="driver-av" style="background:linear-gradient(135deg,${fi.color},${fi.color}99)">${initials(entry.name)}</div>
+          <div style="flex:1">
+            <div class="driver-name">${esc(entry.name)}</div>
+            <div class="driver-meta"><span class="plate">${esc(entry.placa)}</span></div>
+          </div>
+          <span class="badge ${fi.badge}"><span class="dot-live" style="background:${fi.color}"></span>Fila ${entry.fila} · #${pos}</span>
+        </div>
+        <div class="driver-fields">
+          <div class="driver-field">
+            <div class="driver-field-label">Distância da fábrica</div>
+            <div class="driver-field-val" style="color:var(--amber);font-family:var(--mono)">
+              ${dist != null ? dist.toFixed(1) + ' km' : '— sem GPS'}
+            </div>
+          </div>
+          <div class="driver-field">
+            <div class="driver-field-label">Entrada</div>
+            <div class="driver-field-val">${esc(entry.entrada)}</div>
+          </div>
+          <div class="driver-field">
+            <div class="driver-field-label">Espera</div>
+            <div class="driver-field-val ${warnTime ? 'cnh-warn' : ''}">${elapsed(entry.entradaTs)}${warnTime ? ' ⚠️' : ''}</div>
+          </div>
+          <div class="driver-field">
+            <div class="driver-field-label">Status</div>
+            <div class="driver-field-val">${fi.label.split('—')[1]?.trim() || '—'}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `<div class="section-title">📡 Rastreio em Tempo Real</div>
+    <div class="info-box mb10">
+      <span style="font-size:18px">ℹ️</span>
+      <span>Distância atualizada conforme o GPS de cada motorista. Motoristas sem GPS ativo mostram "— sem GPS".</span>
+    </div>
+    ${rows}`;
 }
 
 // ─── RENDER RELATÓRIO ─────────────────────────────────────────────────────────
